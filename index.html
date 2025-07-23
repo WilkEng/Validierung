@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Validierungstest</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 2rem;
+      line-height: 1.5;
+    }
+    label {
+      display: block;
+      margin-top: 0.5rem;
+    }
+    input {
+      margin-left: 0.5rem;
+      padding: 0.25rem 0.4rem;
+      width: 6rem;
+    }
+    h1 {
+      margin-bottom: 1rem;
+    }
+    .output-block {
+      margin-top: 1.5rem;
+    }
+    .toe-output {
+      margin: 0.25rem 0;
+    }
+    .unit-note {
+      font-size: 0.9rem;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <h1>Validierungstest</h1>
+  <p class="unit-note">Alle Dimensionen in mm; Winkel in Dezimal , Grad‑Minute, und mm bei 18" Felge.</p>
+
+  <section id="inputs">
+    <label>Skalenwert FL<input id="tsFL" type="number" step="any" /></label>
+    <label>Skalenwert FR<input id="tsFR" type="number" step="any" /></label>
+    <label>Skalenwert RL<input id="tsRL" type="number" step="any" /></label>
+    <label>Skalenwert RR<input id="tsRR" type="number" step="any" /></label>
+    <label>Track gauge Front<input id="tgF" type="number" step="any" /></label>
+    <label>Track gauge Rear<input id="tgR" type="number" step="any" /></label>
+    <label>Radstand (Wheelbase)<input id="wb" type="number" step="any" /></label>
+  </section>
+
+  <section class="output-block">
+    <h2>Ausgabe</h2>
+    <div id="toeFL" class="toe-output"></div>
+    <div id="toeFR" class="toe-output"></div>
+    <div id="toeRL" class="toe-output"></div>
+    <div id="toeRR" class="toe-output"></div>
+  </section>
+
+  <script>
+    /* Konstanten */
+    const FIXED_OFFSET = 95.5;     // Mittelpunkt der Toe‑Skala / Laseraufnahme
+    const B_MM = 457.2;            // 18 in in mm
+
+    // Input‑Felder überwachen
+    const fieldIds = [
+      "tsFL",
+      "tsFR",
+      "tsRL",
+      "tsRR",
+      "tgF",
+      "tgR",
+      "wb",
+    ];
+    fieldIds.forEach((id) =>
+      document.getElementById(id).addEventListener("input", calculate)
+    );
+
+    // Dezimalgrad → Grad‑Minute (auf ganze Minuten gerundet)
+    function decDegToDegMin(decDeg) {
+      const sign = decDeg < 0 ? "-" : "";
+      const abs = Math.abs(decDeg);
+      let deg = Math.floor(abs);
+      let min = Math.round((abs - deg) * 60);
+      // Falls Rundung 60′ ergibt, auf nächste Gradzahl aufrunden
+      if (min === 60) {
+        deg += 1;
+        min = 0;
+      }
+      const minStr = min.toString().padStart(2, "0");
+      return `${sign}${deg}° ${minStr}′`;
+    }
+
+    // Darstellung aller drei Formate
+    function angleFormats(angleDeg) {
+      const mm = Math.tan((angleDeg * Math.PI) / 180) * B_MM;
+      return (
+        angleDeg.toFixed(2) + // 2 Nachkommastellen für Dezimalgrad
+        "° | " +
+        decDegToDegMin(angleDeg) +
+        " | " +
+        mm.toFixed(1) + // 1 Nachkommastelle für mm
+        " mm"
+      );
+    }
+
+    function calculate() {
+      // Eingaben sammeln; solange nicht vollständig → Ausgaben löschen
+      const V = {};
+      for (const id of fieldIds) {
+        const val = parseFloat(document.getElementById(id).value);
+        if (isNaN(val)) {
+          clearOutputs();
+          return;
+        }
+        V[id] = val;
+      }
+
+      const {
+        tsFL,
+        tsFR,
+        tsRL,
+        tsRR,
+        tgF,
+        tgR,
+        wb,
+      } = V;
+
+      /*
+       * Berechnungsschritt 1 – Differenzen bilden.
+       * Für die Hinterachse (R) wird hier sofort die Vorzeichenumkehr vorgenommen,
+       * sodass der resultierende Winkel bereits die gewünschte Inversion enthält.
+       */
+      const deltaFR = (-tgR + tsRR) - (-tgF + FIXED_OFFSET);
+      const deltaFL = (-tgR + tsRL) - (-tgF + FIXED_OFFSET);
+      const deltaRR = -((-tgF + tsFR) - (-tgR + FIXED_OFFSET)); // invertiert
+      const deltaRL = -((-tgF + tsFL) - (-tgR + FIXED_OFFSET)); // invertiert
+
+      // Winkel in Grad
+      const toeFR = (180 / Math.PI) * Math.atan(deltaFR / wb);
+      const toeFL = (180 / Math.PI) * Math.atan(deltaFL / wb);
+      const toeRR = (180 / Math.PI) * Math.atan(deltaRR / wb);
+      const toeRL = (180 / Math.PI) * Math.atan(deltaRL / wb);
+
+      // DOM aktualisieren
+      document.getElementById("toeFL").textContent =
+        "Toe FL: " + angleFormats(toeFL);
+      document.getElementById("toeFR").textContent =
+        "Toe FR: " + angleFormats(toeFR);
+      document.getElementById("toeRL").textContent =
+        "Toe RL: " + angleFormats(toeRL);
+      document.getElementById("toeRR").textContent =
+        "Toe RR: " + angleFormats(toeRR);
+    }
+
+    function clearOutputs() {
+      ["toeFL", "toeFR", "toeRL", "toeRR"].forEach(
+        (id) => (document.getElementById(id).textContent = "")
+      );
+    }
+  </script>
+</body>
+</html>
